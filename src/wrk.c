@@ -128,7 +128,7 @@ int main(int argc, char **argv) {
         thread *t = &threads[i];
         t->loop        = aeCreateEventLoop(10 + cfg.connections * 3);
         t->connections = connections;
-        t->throughput = throughput;
+        t->throughput  = throughput;
         t->stop_at     = stop_at;
 
         t->L = script_create(cfg.script, url, headers);
@@ -166,6 +166,7 @@ int main(int argc, char **argv) {
     uint64_t start    = time_us();
     uint64_t complete = 0;
     uint64_t bytes    = 0;
+    uint64_t connect  = 0;
     errors errors     = { 0 };
 
     struct hdr_histogram* latency_histogram;
@@ -184,6 +185,7 @@ int main(int argc, char **argv) {
         thread *t = &threads[i];
         complete += t->complete;
         bytes    += t->bytes;
+        connect  += t->connect;
 
         errors.connect += t->errors.connect;
         errors.read    += t->errors.read;
@@ -237,6 +239,7 @@ int main(int argc, char **argv) {
 
     printf("Requests/sec: %9.2Lf\n", req_per_s);
     printf("Transfer/sec: %10sB\n", format_binary(bytes_per_s));
+    printf("Connections:  %d\n", connect);
 
     if (script_has_done(L)) {
         script_summary(L, runtime_us, complete, bytes);
@@ -308,6 +311,7 @@ static int connect_socket(thread *thread, connection *c) {
     if (connect(fd, addr->ai_addr, addr->ai_addrlen) == -1) {
         if (errno != EINPROGRESS) goto error;
     }
+    thread->connect++;
 
     flags = 1;
     setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &flags, sizeof(flags));
